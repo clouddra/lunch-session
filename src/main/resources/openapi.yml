@@ -1,0 +1,230 @@
+openapi: "3.0.3"
+info:
+  version: 0.0.1
+  title: Lunch Session
+  license:
+    name: MIT
+servers:
+  - url: http://localhost:8080/v1
+paths:
+  /users:
+    post:
+      summary: Create user
+      operationId: createUser
+      tags:
+        - users
+      requestBody:
+        description: User data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewUser"
+      responses:
+        201:
+          description: User successfully created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        409:
+          description: User already exists
+        default:
+          description: unexpected error
+  /sessions:
+    post:
+      summary: Create session
+      operationId: createSession
+      tags:
+        - lunch session
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      requestBody:
+        description: Session data
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/NewSession"
+      responses:
+        201:
+          description: successfully created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+  /sessions/{sessionId}/user/{invitedUserId}:
+    put:
+      summary: Add user to session
+      operationId: addSessionUser
+      tags:
+        - lunch session
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: sessionId
+          in: path
+          required: true
+          description: The id of session
+          schema:
+            type: integer
+            format: int64
+        - name: invitedUserId
+          in: path
+          required: true
+          description: The id of user to invite
+          schema:
+            type: integer
+            format: int64
+      responses:
+        200:
+          description: Added user to session successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        401:
+          description: Only creator is authorized to add users
+        404:
+          description: Session/User not found
+        403:
+          description: Session has already ended
+  /sessions/{sessionId}/suggest:
+    put:
+      summary: Suggest restaurant
+      operationId: suggestRestaurant
+      tags:
+        - lunch session
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: sessionId
+          in: path
+          required: true
+          description: Session id
+          schema:
+            type: integer
+            format: int64
+      requestBody:
+        description: Restaurant
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  description: name of restaurant
+                  type: string
+      responses:
+        200:
+          description: Suggestions accepted
+        401:
+          description: Only invited users are authorized to make suggestion
+        404:
+          description: Session not found
+        403:
+          description: Session has already ended
+  /sessions/{sessionId}/end:
+    post:
+      summary: End session
+      operationId: endSession
+      tags:
+        - lunch session
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+        - name: sessionId
+          in: path
+          required: true
+          description: Session id
+          schema:
+            type: integer
+            format: int64
+      responses:
+        200:
+          description: End session successfully. Needs repeatable read condition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        401:
+          description: Only creator is authorized to end session
+        404:
+          description: Session not found or no suggestions are found
+        403:
+          description: Session has already ended
+components:
+  schemas:
+    NewUser:
+      type: object
+      required:
+        - name
+        - email
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    User:
+      allOf:
+        - $ref: '#/components/schemas/NewUser'
+        - type: object
+          required:
+            - id
+          properties:
+            id:
+              type: integer
+              format: int64
+    NewSession:
+      type: object
+      required:
+        - name
+      properties:
+        name:
+          type: string
+    Session:
+      allOf:
+        - $ref: '#/components/schemas/NewSession'
+        - type: object
+          required:
+            - id
+            - creator
+            - participants
+            - status
+          properties:
+            id:
+              type: integer
+              format: int64
+            creator:
+              $ref: '#/components/schemas/User'
+            participants:
+              description: Participants (including creator's user id)
+              type: array
+              items:
+                $ref: '#/components/schemas/Participant'
+            status:
+              type: string
+              enum:
+                - voting
+                - ended
+            chosenRestaurant:
+              type: string
+    Participant:
+      allOf:
+        - $ref: '#/components/schemas/User'
+        - type: object
+          required:
+            - restaurant
+          properties:
+            restaurant:
+              type: string
+  parameters:
+    UserId:
+      name: X-User-ID
+      description: Current user. In a production system this would be a jwt token
+      schema:
+        type: integer
+        format: int64
+      in: header
+
